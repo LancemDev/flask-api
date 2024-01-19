@@ -1,20 +1,27 @@
 import os
+import firebase_admin
+from firebase_admin import credentials, db
 from flask import Flask, request
+
+cred = credentials.Certificate('/the/path/to/your/serviceAccountKey.json')
+
+firebase_admin.initialize_app(cred, {
+    'databaseURL': 'https://your-project-id.firebaseio.com'
+})
 
 app = Flask(__name__)
 
-# Initialize a dictionary to store user data
-user_data = {}
+# user_data = {}
 
 @app.route('/', methods=['POST', 'GET'])
 def ussd_callback():
-    global user_data
     session_id = request.values.get("sessionId", None)
     service_code = request.values.get("serviceCode", None)
     phone_number = request.values.get("phoneNumber", None)
     text = request.values.get("text", "default").split('*')
 
-    # Initialize user data if not already done
+    user_ref = db.reference(f'users/{phone_number}')
+    user_data = user_ref.get() or {'expenses': {}, 'budget': '0'}
     if phone_number not in user_data:
         user_data[phone_number] = {'expenses': {}, 'budget': 0}
 
@@ -41,6 +48,7 @@ def ussd_callback():
     if sum(user_data[phone_number]['expenses'].values()) > user_data[phone_number]['budget']:
         response += "\nYou have exceeded your budget limit!"
 
+    user_ref.set(user_data)
     return response
 
 if __name__ == '__main__':
